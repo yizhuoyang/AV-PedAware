@@ -20,7 +20,7 @@ if __name__ == "__main__":
     parser.add_argument('--gpu', type=str, default='cuda:0', help='specify the gpu device')
     parser.add_argument('--vis_lidar', type=int, default='0', help='vis the lidar with detected bbox')
     parser.add_argument('--save_lidar', type=int, default='0', help='save the lidar with detected bbox')
-    parser.add_argument('--dark_aug', type=int, default='0', help='use dark_aug to simulate camera fail condition')
+    parser.add_argument('--dark_aug', type=int, default='0', help='use dark_aug to simulate camera fail condition: 0: camera works, 1:camera fial')
     args = parser.parse_args()
 
 
