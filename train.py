@@ -104,7 +104,6 @@ if __name__ == "__main__":
     parser.add_argument('--batchsize', type=int, default=32, help='Batch size')
     parser.add_argument('--train_epoch', type=int, default=80, help='Number of training epochs')
     parser.add_argument('--workers', type=int, default=4, help='Number of workers for DataLoader')
-    parser.add_argument('--network', type=int, default=2, help='0:convft 1:conv2d 2:vit 3:ast')
     parser.add_argument('--gpu', type=str, default='cuda:0', help='specify the gpu device')
     args = parser.parse_args()
 
