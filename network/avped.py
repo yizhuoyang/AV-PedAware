@@ -91,7 +91,7 @@ class FusionNet(nn.Module):
         f1 = self.dropout3(f1).view(b, -1)
 
         f2 = F.relu(self.convf2(x))
-        f2 = self.bn_a4(f2)
+        # f2 = self.bn_a4(f2)
         f2 = self.dropout4(f2).view(b, -1)
 
         feature_tf = torch.cat([t1, t2, f1, f2], dim=-1)
