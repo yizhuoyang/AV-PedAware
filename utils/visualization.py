@@ -87,9 +87,15 @@ def draw_scenes(points, gt_boxes=None, ref_boxes=None, ref_labels=None, ref_scor
     vis.run()
     vis.destroy_window()
 
-
+# save the detection results
 def draw_scenes_no_vis(points, gt_boxes=None, ref_boxes=None, ref_labels=None, ref_scores=None, point_colors=None, draw_origin=True,json_path='/home/lx/yyz/Audio_experiment/trans.json',save_path='/home/lx/yyz/Multimodal_exp/Initial_ex_data/vis_result',lidar_path='',vis=1):
-
+    if isinstance(points, torch.Tensor):
+        points = points.cpu().numpy()
+    if isinstance(gt_boxes, torch.Tensor):
+        gt_boxes = gt_boxes.cpu().numpy()
+    if isinstance(ref_boxes, torch.Tensor):
+        ref_boxes = ref_boxes.cpu().numpy()
+        
     save_name = save_path+'/'+lidar_path[:-4]+'.jpg'
     vis = open3d.visualization.Visualizer()
     vis.create_window()
@@ -127,7 +133,7 @@ def draw_scenes_no_vis(points, gt_boxes=None, ref_boxes=None, ref_labels=None, r
 
     vis.poll_events()
     vis.update_renderer()
-    # vis.capture_screen_image(save_name)
+    vis.capture_screen_image(save_name)
 
     vis.destroy_window()
 
