@@ -15,6 +15,9 @@ $ python train.py --train_epoch 200 --workers 4 --gpu cuda:0
 ```bash
 $ python evaluation.py --checkpoint_path /model_path --gpu cuda:0 
 ```
+## Tutorial
+A tutorial is added to show the general workflow of the network with detailed explanation.
+
 ## Cite
 ```bash
 @inproceedings{yang2023av,
