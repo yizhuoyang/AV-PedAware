@@ -18,6 +18,10 @@ $ python train.py --train_epoch 200 --workers 4 --gpu cuda:0
 ```bash
 $ python evaluation.py --checkpoint_path /model_path --gpu cuda:0 
 ```
+
+## Note
+All the data is collected by ROS system. This [doc](https://docs.google.com/document/d/12u2E4NLQzOtWxfTxPNV5JmIW54Tqq5v7CQbI7BGwuQw/edit?usp=sharing) shows how we process recorded audio data for your reference. 
+
 ## Cite
 ```bash
 @inproceedings{yang2023av,
