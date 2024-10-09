@@ -7,6 +7,13 @@ This is the repository for "AV-PedAware: Self-Supervised Audio-Visual Fusion for
 ## Data
 Some of the newly collected data with 8 mic array can be download from this [link](https://pan.baidu.com/s/1VzQnecSW_UPeBkFju6Zf9A?pwd=2024)
 
+## installation
+```bash
+$ pip3 install librosa
+$ pip3 install open3d
+$ pip3 install torchaudio
+```
+
 ## Tutorial
 A tutorial is added to show the general workflow of the network with detailed explanation. Can be found in Tutorial for AVped.ipynb
 
