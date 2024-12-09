@@ -5,7 +5,7 @@ This is the repository for "AV-PedAware: Self-Supervised Audio-Visual Fusion for
 <img src="https://github.com/yizhuoyang/AV-PedAware/blob/main/figs/detection_result.gif" width="70%">
 
 ## Data
-Some of the newly collected data with 8 mic array can be download from this [link](https://pan.baidu.com/s/1VzQnecSW_UPeBkFju6Zf9A?pwd=2024)
+Some of the newly collected data with 8 mic array can be download from this [link](https://pan.baidu.com/s/1VzQnecSW_UPeBkFju6Zf9A?pwd=2024) or [google drive](https://drive.google.com/drive/folders/1nPTepGdy6jtVHSYqUx5XLJW_u6YSFxYd?usp=drive_link)
 
 ## installation
 ```bash
