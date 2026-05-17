@@ -7,6 +7,48 @@ This is the repository for "AV-PedAware: Self-Supervised Audio-Visual Fusion for
 ## Data
 Some of the newly collected data with 8 mic array can be download from this [link](https://pan.baidu.com/s/1VzQnecSW_UPeBkFju6Zf9A?pwd=2024) or [google drive](https://drive.google.com/drive/folders/1nPTepGdy6jtVHSYqUx5XLJW_u6YSFxYd?usp=drive_link)
 
+### Generate paired samples from ROS 2 bags
+
+The script `data_processing/build_pairs_from_rosbags.py` creates timestamp-aligned multimodal samples from extracted wav files and the corresponding ROS 2 bags.
+
+Before running it, make sure:
+- extracted wav files are stored under `data/wav/`
+- `data/wav/audio_timestamps.csv` contains the mapping from each wav file to its ROS 2 bag
+- the source bags contain these topics:
+  - `/camera/color/image_raw/compressed`
+  - `/camera/depth/image_raw/compressedDepth`
+  - `/livox/lidar`
+
+Run:
+
+```bash
+$ source /opt/ros/galactic/setup.bash
+$ /usr/bin/python3.8 data_processing/build_pairs_from_rosbags.py --overwrite
+```
+
+By default, audio is split into `0.5 s` segments. For each segment, the nearest RGB image, depth image, and lidar frame are selected by timestamp and written to:
+
+```text
+data/pairs/
+  bag_name/
+    audio/
+      0001.wav
+    image/
+      0001.png
+    depth/
+      0001.png
+    lidar/
+      0001.bin
+    manifest.csv
+```
+
+Useful options:
+
+```bash
+$ /usr/bin/python3.8 data_processing/build_pairs_from_rosbags.py --bag-name rosbag2_2026_05_17-09_34_07 --overwrite
+$ /usr/bin/python3.8 data_processing/build_pairs_from_rosbags.py --segment-seconds 0.5 --max-sync-gap-seconds 0.25 --overwrite
+```
+
 ## installation
 ```bash
 $ pip3 install librosa
