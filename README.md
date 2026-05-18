@@ -49,6 +49,107 @@ $ /usr/bin/python3.8 data_processing/build_pairs_from_rosbags.py --bag-name rosb
 $ /usr/bin/python3.8 data_processing/build_pairs_from_rosbags.py --segment-seconds 0.5 --max-sync-gap-seconds 0.25 --overwrite
 ```
 
+### Generate pseudo 3D bbox labels
+
+Pseudo 3D bounding boxes are generated with a LiDAR-only detector trained from a small set of manually checked sequences.
+
+#### 1. Prepare LiDAR labels
+
+Use labelCloud to annotate or correct a subset of sequences. The labels stored in each bag directory use the labelCloud `kitti_untransformed` style:
+
+```text
+person 0 0 0 0 0 0 0 h w l x y z yaw
+```
+
+The currently selected training sequences are defined in `data_processing/prepare_openpcdet_custom.py`.
+
+#### 2. Convert labels for OpenPCDet
+
+`prepare_openpcdet_custom.py` converts labelCloud labels into the OpenPCDet custom format:
+
+```text
+x y z dx dy dz heading Pedestrian
+```
+
+It also converts each `.bin` point cloud into `.npy` and creates the OpenPCDet `ImageSets` split files.
+
+```bash
+$ python3 data_processing/prepare_openpcdet_custom.py --overwrite
+```
+
+#### 3. Train the LiDAR detector
+
+OpenPCDet is kept as a local external dependency and is not tracked in this repository. After setting up OpenPCDet, generate dataset infos and train the pedestrian detector:
+
+```bash
+$ cd OpenPCDet
+$ python3 -m pcdet.datasets.custom.custom_dataset create_custom_infos \
+    tools/cfgs/dataset_configs/avped_pedestrian_dataset.yaml
+$ cd tools
+$ python3 train.py \
+    --cfg_file cfgs/custom_models/avped_second_pedestrian.yaml \
+    --batch_size 4 \
+    --epochs 80 \
+    --workers 4 \
+    --extra_tag avped_pedestrian
+```
+
+#### 4. Infer pseudo labels for the remaining sequences
+
+Use the trained checkpoint to infer bounding boxes for sequences that are not included in the manually checked training set:
+
+```bash
+$ cd OpenPCDet/tools
+$ python3 infer_avped_pairs.py \
+    --cfg_file cfgs/custom_models/avped_second_pedestrian.yaml \
+    --ckpt ../output/custom_models/avped_second_pedestrian/avped_pedestrian/ckpt/checkpoint_epoch_80.pth \
+    --pairs_root ../../data/pairs \
+    --score_thresh 0.1
+```
+
+The inference script writes:
+
+```text
+bag_name/
+  labels/
+    0001.txt
+  labels_with_scores/
+    0001.txt
+```
+
+`labels/` keeps the labelCloud-compatible `kitti_untransformed` text format. `labels_with_scores/` appends the detection score as the final field for later filtering.
+
+#### 5. Keep one bbox per frame
+
+For the current single-person setup, if one frame contains multiple predicted boxes, keep only the highest-score box:
+
+```bash
+$ python3 data_processing/keep_top_score_label.py
+```
+
+#### 6. Check and visualize the generated labels
+
+Check whether every inferred frame contains exactly one box:
+
+```bash
+$ python3 data_processing/check_infer_results.py
+```
+
+Render only problematic frames:
+
+```bash
+$ python3 data_processing/check_infer_results.py --render --only-problems
+```
+
+Render all labels for manual review:
+
+```bash
+$ python3 data_processing/check_infer_results.py \
+    --include-labeled-bags \
+    --render \
+    --output-dir data/label_previews_all
+```
+
 ## installation
 ```bash
 $ pip3 install librosa
