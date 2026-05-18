@@ -3,12 +3,8 @@ from random import random
 
 import cv2
 import librosa
-import matplotlib.pyplot as plt
-import matplotlib
 import torch
 
-
-matplotlib.use('TKAgg')
 from scipy import signal
 import numpy as np
 from scipy.signal import butter, lfilter
@@ -69,6 +65,32 @@ def Audio2Spectrogram(np_data,sr,normarlization=1,min_frequency=100,max_frequenc
     # spectrogram = resize_transform(spectrogram)
 
     return spectrogram
+
+
+def Audio2IPDSpectrogram(np_data, sr, ref_channel=0):
+    """Build 64x64 audio features with inter-channel phase differences."""
+    wave = torch.tensor(np_data, dtype=torch.float32)
+    stft = torch.stft(
+        wave,
+        n_fft=2048,
+        hop_length=1024,
+        window=torch.hann_window(2048),
+        return_complex=True,
+    )
+    ref = stft[ref_channel]
+    ref_mag = torch.log1p(torch.abs(ref))
+    ref_mag = normalization_processing_torch(ref_mag)
+    features = [ref_mag]
+    ref_phase = torch.angle(ref)
+    for channel in range(wave.shape[0]):
+        if channel == ref_channel:
+            continue
+        phase_diff = torch.angle(stft[channel]) - ref_phase
+        features.append(torch.sin(phase_diff))
+        features.append(torch.cos(phase_diff))
+    spec = torch.stack(features, dim=0)
+    resize_transform = trans.Resize((64, 64), antialias=True)
+    return resize_transform(spec)
 
 def make_seq_audio(audio_path,name):
     parts = name.split("/")

@@ -9,7 +9,7 @@ from network.detection_heads import DetectNet
 
 
 class FusionNet(nn.Module):
-    def __init__(self, dropout_rate=0.6, kerel_num=32, feature_dim=512):
+    def __init__(self, dropout_rate=0.6, kerel_num=32, feature_dim=512, audio_channels=8):
         super().__init__()
         # Visual Def
         self.feature_dim = feature_dim
@@ -21,11 +21,11 @@ class FusionNet(nn.Module):
 
         # Audio Def
         # self.audionet = ASTModel(input_tdim=224,input_fdim=224,label_dim=self.feature_dim, audioset_pretrain=False,imagenet_pretrain=False,model_size='base384')
-        self.convt1 = nn.Conv2d(8, 16, (3, 64))
-        self.convt2 = nn.Conv2d(8, 16, (5, 64))
+        self.convt1 = nn.Conv2d(audio_channels, 16, (3, 64))
+        self.convt2 = nn.Conv2d(audio_channels, 16, (5, 64))
 
-        self.convf1 = nn.Conv2d(8, 16, (64, 3))
-        self.convf2 = nn.Conv2d(8, 16, (64, 5))
+        self.convf1 = nn.Conv2d(audio_channels, 16, (64, 3))
+        self.convf2 = nn.Conv2d(audio_channels, 16, (64, 5))
 
         self.fc1 = nn.Linear(3904, feature_dim)
         self.dropout1 = nn.Dropout(dropout_rate)
@@ -113,7 +113,7 @@ class FusionNet(nn.Module):
         detect = F.relu(self.detec2(detect))
         # detect  = self.dropout_d(detect)
         detect = self.detec3(detect)
-        detect_soft = F.softmax(detect)
+        detect_soft = F.softmax(detect, dim=1)
         detect_expanded = detect_soft.unsqueeze(-1)
         f_all = f_all * detect_expanded
         f_all = torch.sum(f_all, 1)
@@ -159,5 +159,3 @@ class FusionNet(nn.Module):
 
 
         return position,detect,segmentation
-
-

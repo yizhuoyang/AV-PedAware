@@ -4,7 +4,7 @@ import torch
 
 
 class AudioNet(nn.Module):
-    def __init__(self, dropout_rate=0.3, kerel_num=16, feature_dim=512):
+    def __init__(self, dropout_rate=0.3, kerel_num=16, feature_dim=512, audio_channels=8):
         super(AudioNet, self).__init__()
         self.dropout_rate = dropout_rate
         self.feature_dim = feature_dim
@@ -12,11 +12,11 @@ class AudioNet(nn.Module):
 
         #Audio Def
         # 4 reprents four mic array, the audio spectrogram size is (64,64)
-        self.convt1 = nn.Conv2d(8, self.kernel_num, (3, 64))
-        self.convt2 = nn.Conv2d(8, self.kernel_num, (5, 64))
-        self.convf1 = nn.Conv2d(8, self.kernel_num, (64, 3))
-        self.convf2 = nn.Conv2d(8, self.kernel_num ,(64, 5))
-        self.fc_audio = nn.Linear(3904, self.feature_dim)
+        self.convt1 = nn.Conv2d(audio_channels, self.kernel_num, (3, 64))
+        self.convt2 = nn.Conv2d(audio_channels, self.kernel_num, (5, 64))
+        self.convf1 = nn.Conv2d(audio_channels, self.kernel_num, (64, 3))
+        self.convf2 = nn.Conv2d(audio_channels, self.kernel_num ,(64, 5))
+        self.fc_audio = nn.Linear(244 * self.kernel_num, self.feature_dim)
         self.dropout1 = nn.Dropout2d(self.dropout_rate)
         self.dropout2 = nn.Dropout2d(self.dropout_rate)
         self.dropout3 = nn.Dropout2d(self.dropout_rate)

@@ -1,9 +1,6 @@
 import os.path
 import random
 
-import matplotlib.pyplot as plt
-import matplotlib
-matplotlib.use('TKAgg')
 import numpy as np
 import torchaudio.transforms as T
 import torchvision.transforms as trans
@@ -64,4 +61,3 @@ def image_darkaug_test(img,dark_aug,brightness=1,conv2d=0):
 def preprocess_input(image):
     image = image / 127.5-1
     return image
-

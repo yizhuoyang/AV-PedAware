@@ -8,3 +8,8 @@ def regression_loss(y_pred,y_true):
     total_loss = mse_loss1 + 0.1 * mse_loss2
     return total_loss
 
+
+def angle_vector_loss(y_pred, y_true):
+    y_pred = torch.nn.functional.normalize(y_pred, dim=1)
+    y_true = torch.nn.functional.normalize(y_true, dim=1)
+    return (1.0 - torch.sum(y_pred * y_true, dim=1)).mean()
