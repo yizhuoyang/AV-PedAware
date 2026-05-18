@@ -42,6 +42,7 @@ def build_loader(args, split, shuffle):
         root_path=args.data_root,
         split=split,
         audio_channels=tuple(args.audio_channels),
+        feature_type=args.feature_type,
         include_lidar=False,
         return_metadata=False,
         skip_empty_labels=True,
@@ -67,9 +68,14 @@ def main(args):
     if len(val_dataset) == 0:
         raise ValueError(f"No samples found for val split: {args.val_split}")
 
+    input_audio_channels = (
+        1 + 2 * (len(args.audio_channels) - 1)
+        if args.feature_type == "ipd"
+        else len(args.audio_channels)
+    )
     model = FusionNet(
         dropout_rate=args.dropout_rate,
-        audio_channels=len(args.audio_channels),
+        audio_channels=input_audio_channels,
     ).to(device)
     if args.checkpoint:
         model.load_state_dict(torch.load(args.checkpoint, map_location=device))
@@ -80,6 +86,8 @@ def main(args):
     print(f"train samples: {len(train_dataset)}")
     print(f"val samples: {len(val_dataset)}")
     print(f"audio channels: {args.audio_channels}")
+    print(f"feature type: {args.feature_type}")
+    print(f"input audio feature channels: {input_audio_channels}")
     print(f"device: {device}")
 
     for epoch in range(1, args.epochs + 1):
@@ -102,6 +110,7 @@ if __name__ == "__main__":
     parser.add_argument("--train-split", default="train")
     parser.add_argument("--val-split", default="test")
     parser.add_argument("--audio-channels", type=int, nargs="+", default=[0, 1, 2, 3])
+    parser.add_argument("--feature-type", choices=["mel", "ipd"], default="mel")
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--epochs", type=int, default=80)
     parser.add_argument("--workers", type=int, default=4)

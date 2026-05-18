@@ -6,7 +6,7 @@ import torch
 from scipy.io import wavfile
 from torch.utils.data import Dataset
 
-from preprocess.audio_process import Audio2Spectrogram
+from preprocess.audio_process import Audio2IPDSpectrogram, Audio2Spectrogram
 from preprocess.image_process import preprocess_input
 
 
@@ -18,6 +18,7 @@ class AVpedPairsLoader(Dataset):
         root_path="data/pairs",
         split="train",
         audio_channels=(0, 1, 2, 3),
+        feature_type="mel",
         image_size=(256, 256),
         depth_size=(256, 256),
         include_lidar=False,
@@ -29,6 +30,7 @@ class AVpedPairsLoader(Dataset):
         self.split = split
         self.split_root = self.root_path / split
         self.audio_channels = audio_channels
+        self.feature_type = feature_type
         self.image_size = image_size
         self.depth_size = depth_size
         self.include_lidar = include_lidar
@@ -90,7 +92,11 @@ class AVpedPairsLoader(Dataset):
             audio = audio[:, self.audio_channels]
 
         audio = np.transpose(audio, [1, 0])
-        return Audio2Spectrogram(audio, sr=sample_rate).float()
+        if self.feature_type == "mel":
+            return Audio2Spectrogram(audio, sr=sample_rate).float()
+        if self.feature_type == "ipd":
+            return Audio2IPDSpectrogram(audio, sr=sample_rate).float()
+        raise ValueError(f"Unsupported feature_type: {self.feature_type}")
 
     def _load_image(self, path):
         image = cv2.imread(str(path), cv2.IMREAD_COLOR)

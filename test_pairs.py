@@ -40,6 +40,7 @@ def build_dataset(args, include_lidar=False, return_metadata=False):
         root_path=args.data_root,
         split=args.split,
         audio_channels=tuple(args.audio_channels),
+        feature_type=args.feature_type,
         include_lidar=include_lidar,
         return_metadata=return_metadata,
         skip_empty_labels=True,
@@ -90,7 +91,7 @@ def visualize_sample(model, dataset, index, device, output_path=None):
     fig.colorbar(depth_plot, ax=axes[1], fraction=0.046, pad=0.04)
 
     axes[2].imshow(spec.numpy()[0], origin="lower", aspect="auto", cmap="magma")
-    axes[2].set_title("Audio mel spectrogram, channel 0")
+    axes[2].set_title(f"Audio {args_feature_type_label(dataset)} feature, channel 0")
     axes[2].set_xlabel("Time")
     axes[2].set_ylabel("Mel bins")
 
@@ -138,9 +139,18 @@ def visualize_sample(model, dataset, index, device, output_path=None):
     print("pred:", pred.tolist())
 
 
+def args_feature_type_label(dataset):
+    return dataset.feature_type.upper()
+
+
 def main(args):
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
-    model = FusionNet(audio_channels=len(args.audio_channels)).to(device)
+    input_audio_channels = (
+        1 + 2 * (len(args.audio_channels) - 1)
+        if args.feature_type == "ipd"
+        else len(args.audio_channels)
+    )
+    model = FusionNet(audio_channels=input_audio_channels).to(device)
     model.load_state_dict(torch.load(args.checkpoint, map_location=device))
 
     eval_dataset = build_dataset(args)
@@ -167,6 +177,7 @@ if __name__ == "__main__":
     parser.add_argument("--data-root", default="data/pairs")
     parser.add_argument("--split", default="test")
     parser.add_argument("--audio-channels", type=int, nargs="+", default=[0, 1, 2, 3])
+    parser.add_argument("--feature-type", choices=["mel", "ipd"], default="mel")
     parser.add_argument("--checkpoint", default="output_pairs/model_best.pth")
     parser.add_argument("--batch-size", type=int, default=16)
     parser.add_argument("--workers", type=int, default=4)

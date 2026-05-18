@@ -1,0 +1,125 @@
+import argparse
+from pathlib import Path
+
+import numpy as np
+import torch
+import torch.optim as optim
+from torch.optim.lr_scheduler import StepLR
+from torch.utils.data import DataLoader
+
+from dataloader.NeuralMusic_loader import AVPedNeuralMusicLoader
+from network.NeuralMUSIC import NeuralMusic
+from utils.model_training import ModelTrainer
+
+
+def parse_mic_offsets(value):
+    if not value:
+        return None
+    rows = []
+    for row in value.split(";"):
+        rows.append([float(v) for v in row.split(",")])
+    offsets = np.asarray(rows, dtype=np.float32)
+    if offsets.ndim != 2 or offsets.shape[1] != 3:
+        raise ValueError("mic offsets must look like 'x,y,z;x,y,z;...'")
+    return offsets
+
+
+def main(args):
+    device = torch.device(args.device if torch.cuda.is_available() else "cpu")
+    mic_offsets = parse_mic_offsets(args.mic_offsets)
+
+    train_dataset = AVPedNeuralMusicLoader(
+        root_path=args.data_root,
+        split=args.train_split,
+        mic_offsets=mic_offsets,
+        audio_channels=tuple(args.audio_channels),
+        feature_type=args.feature_type,
+        geometry_aug=args.geometry_aug,
+        rotation_interval=args.rotation_interval,
+    )
+    val_dataset = AVPedNeuralMusicLoader(
+        root_path=args.data_root,
+        split=args.val_split,
+        mic_offsets=mic_offsets,
+        audio_channels=tuple(args.audio_channels),
+        feature_type=args.feature_type,
+        geometry_aug=False,
+    )
+    if len(train_dataset) == 0 or len(val_dataset) == 0:
+        raise ValueError("Train and validation splits must both contain samples")
+
+    train_loader = DataLoader(
+        train_dataset,
+        batch_size=args.batch_size,
+        shuffle=True,
+        num_workers=args.workers,
+    )
+    val_loader = DataLoader(
+        val_dataset,
+        batch_size=args.batch_size,
+        shuffle=False,
+        num_workers=args.workers,
+    )
+
+    input_channel = (
+        1 + 2 * (len(args.audio_channels) - 1)
+        if args.feature_type == "ipd"
+        else 2 * len(args.audio_channels)
+    )
+    model = NeuralMusic(
+        N=len(args.audio_channels),
+        T=8000,
+        M=1,
+        device=device,
+        attention=not args.no_attention,
+        input_channel=input_channel,
+    )
+    optimizer = optim.Adam(model.parameters(), lr=args.lr, weight_decay=args.weight_decay)
+    scheduler = StepLR(optimizer, step_size=args.lr_step_size, gamma=args.lr_gamma)
+
+    save_dir = Path(args.save_dir)
+    save_dir.mkdir(parents=True, exist_ok=True)
+    print(f"train samples: {len(train_dataset)}")
+    print(f"val samples: {len(val_dataset)}")
+    print(f"audio channels: {args.audio_channels}")
+    print(f"feature type: {args.feature_type}")
+    print(f"geometry augmentation: {args.geometry_aug}")
+    print(f"input feature channels: {input_channel}")
+    print(f"device: {device}")
+
+    trainer = ModelTrainer(
+        model=model,
+        train_loader=train_loader,
+        val_loader=val_loader,
+        criterion=None,
+        optimizer=optimizer,
+        epoch=args.epochs,
+        model_path=str(save_dir),
+        device=device,
+        lr_scheduler=scheduler,
+    )
+    trainer.train()
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Train NeuralMUSIC on AV-PedAware pairs data")
+    parser.add_argument("--data-root", default="data/pairs")
+    parser.add_argument("--train-split", default="train")
+    parser.add_argument("--val-split", default="test")
+    parser.add_argument("--audio-channels", type=int, nargs="+", default=[0, 1, 2, 3])
+    parser.add_argument("--feature-type", choices=["magphase", "ipd"], default="magphase")
+    parser.add_argument("--geometry-aug", action="store_true")
+    parser.add_argument("--rotation-interval", type=int, default=None)
+    parser.add_argument("--mic-offsets", default="", help="Optional 'x,y,z;x,y,z;...' microphone geometry in meters")
+    parser.add_argument("--batch-size", type=int, default=16)
+    parser.add_argument("--epochs", type=int, default=80)
+    parser.add_argument("--workers", type=int, default=4)
+    parser.add_argument("--lr", type=float, default=1e-4)
+    parser.add_argument("--weight-decay", type=float, default=1e-4)
+    parser.add_argument("--lr-step-size", type=int, default=30)
+    parser.add_argument("--lr-gamma", type=float, default=0.5)
+    parser.add_argument("--no-attention", action="store_true")
+    parser.add_argument("--save-dir", default="output_neuralmusic")
+    parser.add_argument("--device", default="cuda:0")
+    main(parser.parse_args())
+
