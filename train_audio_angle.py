@@ -8,6 +8,7 @@ from torch.utils.data import DataLoader
 from tqdm import tqdm
 
 from dataloader.avped_audio_angle_dataloader import AVpedAudioAngleLoader
+from dataloader.audionav_audio_angle_dataloader import AudioNavAudioAngleLoader
 from network.audio_angle_net import AudioAngleNet
 from utils.loss import angle_vector_loss
 
@@ -41,15 +42,28 @@ def run_epoch(model, dataloader, optimizer, device, training):
 
 
 def build_loader(args, split, shuffle):
-    dataset = AVpedAudioAngleLoader(
-        root_path=args.data_root,
-        split=split,
-        audio_channels=tuple(args.audio_channels),
-        feature_type=args.feature_type,
-        augment=shuffle,
-        freq_mask_param=args.freq_mask_param,
-        time_mask_param=args.time_mask_param,
-    )
+    if args.dataset_type == "audio-nav":
+        dataset = AudioNavAudioAngleLoader(
+            root_path=args.data_root,
+            split=split,
+            audio_channels=tuple(args.audio_channels),
+            feature_type=args.feature_type,
+            doa_field=args.doa_field,
+            object_filter=args.object_filter,
+            augment=shuffle,
+            freq_mask_param=args.freq_mask_param,
+            time_mask_param=args.time_mask_param,
+        )
+    else:
+        dataset = AVpedAudioAngleLoader(
+            root_path=args.data_root,
+            split=split,
+            audio_channels=tuple(args.audio_channels),
+            feature_type=args.feature_type,
+            augment=shuffle,
+            freq_mask_param=args.freq_mask_param,
+            time_mask_param=args.time_mask_param,
+        )
     return dataset, DataLoader(
         dataset,
         batch_size=args.batch_size,
@@ -95,6 +109,11 @@ def main(args):
 
     print(f"train samples: {len(train_dataset)}")
     print(f"val samples: {len(val_dataset)}")
+    print(f"dataset type: {args.dataset_type}")
+    if args.dataset_type == "audio-nav":
+        print(f"object filter: {args.object_filter or 'all'}")
+        print(f"train sequences: {train_dataset.selected_sequences}")
+        print(f"val sequences: {val_dataset.selected_sequences}")
     print(f"audio channels: {args.audio_channels}")
     print(f"feature type: {args.feature_type}")
     print(f"device: {device}")
@@ -123,9 +142,12 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train audio-only azimuth estimator")
+    parser.add_argument("--dataset-type", choices=["avped", "audio-nav"], default="avped")
     parser.add_argument("--data-root", default="data/pairs")
     parser.add_argument("--train-split", default="train")
     parser.add_argument("--val-split", default="test")
+    parser.add_argument("--doa-field", default="heading_target_yaw_signed_deg")
+    parser.add_argument("--object-filter", default="")
     parser.add_argument("--audio-channels", type=int, nargs="+", default=[0, 1, 2, 3])
     parser.add_argument("--feature-type", choices=["ipd", "mel"], default="ipd")
     parser.add_argument("--batch-size", type=int, default=16)
