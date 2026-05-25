@@ -60,9 +60,16 @@ def build_loader(args, split, shuffle):
             split=split,
             audio_channels=tuple(args.audio_channels),
             feature_type=args.feature_type,
+            object_filter=args.object_filter,
             augment=shuffle,
             freq_mask_param=args.freq_mask_param,
             time_mask_param=args.time_mask_param,
+            noise_wav=args.noise_wav if shuffle else None,
+            noise_probability=args.noise_probability if shuffle else 0.0,
+            snr_db_range=(args.min_snr_db, args.max_snr_db),
+            low_cut_hz=args.low_cut_hz,
+            high_cut_hz=args.high_cut_hz,
+            filter_order=args.filter_order,
         )
     return dataset, DataLoader(
         dataset,
@@ -110,12 +117,25 @@ def main(args):
     print(f"train samples: {len(train_dataset)}")
     print(f"val samples: {len(val_dataset)}")
     print(f"dataset type: {args.dataset_type}")
-    if args.dataset_type == "audio-nav":
+    if args.dataset_type in {"audio-nav", "avped"}:
         print(f"object filter: {args.object_filter or 'all'}")
         print(f"train sequences: {train_dataset.selected_sequences}")
         print(f"val sequences: {val_dataset.selected_sequences}")
     print(f"audio channels: {args.audio_channels}")
     print(f"feature type: {args.feature_type}")
+    if args.dataset_type == "avped":
+        print(f"noise wav: {args.noise_wav or 'disabled'}")
+        print(
+            f"noise probability: {args.noise_probability if args.noise_wav else 0.0} "
+            f"snr db range: [{args.min_snr_db}, {args.max_snr_db}]"
+        )
+        if args.low_cut_hz is None and args.high_cut_hz is None:
+            print("audio filter: disabled")
+        else:
+            print(
+                f"audio filter: low_cut_hz={args.low_cut_hz} "
+                f"high_cut_hz={args.high_cut_hz} order={args.filter_order}"
+            )
     print(f"device: {device}")
 
     for epoch in range(1, args.epochs + 1):
@@ -161,6 +181,13 @@ if __name__ == "__main__":
     parser.add_argument("--kernel-num", type=int, default=8)
     parser.add_argument("--freq-mask-param", type=int, default=8)
     parser.add_argument("--time-mask-param", type=int, default=8)
+    parser.add_argument("--noise-wav", default="", help="Optional background noise wav mixed into training samples.")
+    parser.add_argument("--noise-probability", type=float, default=1.0)
+    parser.add_argument("--min-snr-db", type=float, default=0.0)
+    parser.add_argument("--max-snr-db", type=float, default=20.0)
+    parser.add_argument("--low-cut-hz", type=float, default=None)
+    parser.add_argument("--high-cut-hz", type=float, default=None)
+    parser.add_argument("--filter-order", type=int, default=4)
     parser.add_argument("--lr-factor", type=float, default=0.5)
     parser.add_argument("--lr-patience", type=int, default=5)
     parser.add_argument("--early-stop-patience", type=int, default=12)

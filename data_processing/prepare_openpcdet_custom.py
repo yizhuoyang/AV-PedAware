@@ -38,6 +38,18 @@ def parse_args():
         action="store_true",
         help="Replace an existing custom dataset directory.",
     )
+    parser.add_argument(
+        "--train-bags",
+        nargs="+",
+        default=None,
+        help="Bag directories to use for training. Defaults to the existing ROS 2 training set.",
+    )
+    parser.add_argument(
+        "--val-bags",
+        nargs="*",
+        default=None,
+        help="Bag directories to use for validation. Defaults to the existing validation set.",
+    )
     return parser.parse_args()
 
 
@@ -111,6 +123,10 @@ def convert_split(pairs_root, output_root, split, bag_names, start_index):
 def main():
     args = parse_args()
     prepare_output_dirs(args.output_root, args.overwrite)
+    splits = {
+        "train": args.train_bags if args.train_bags is not None else DEFAULT_SPLITS["train"],
+        "val": args.val_bags if args.val_bags is not None else DEFAULT_SPLITS["val"],
+    }
 
     next_index = 1
     counts = {}
@@ -119,7 +135,7 @@ def main():
             args.pairs_root,
             args.output_root,
             split,
-            DEFAULT_SPLITS[split],
+            splits[split],
             next_index,
         )
         counts[split] = count

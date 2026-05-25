@@ -18,7 +18,7 @@ def parse_args():
     parser.add_argument(
         "--xy-radius",
         type=float,
-        default=4.0,
+        default=5.0,
         help="Keep points within this XY radius from the origin.",
     )
     parser.add_argument(
@@ -30,7 +30,7 @@ def parse_args():
     parser.add_argument(
         "--pitch-degrees",
         type=float,
-        default=23.0,
+        default=0.0,
         help="Rotate points around +Y before filtering to compensate lidar pitch.",
     )
     parser.add_argument(

@@ -49,6 +49,61 @@ $ /usr/bin/python3.8 data_processing/build_pairs_from_rosbags.py --bag-name rosb
 $ /usr/bin/python3.8 data_processing/build_pairs_from_rosbags.py --segment-seconds 0.5 --max-sync-gap-seconds 0.25 --overwrite
 ```
 
+### Generate paired samples from ROS 1 bags
+
+The ROS 1 version reads `.bag` files together with wav files whose names contain
+the audio start timestamp:
+
+```text
+wav_dir/
+  my_recording_1747800000.125.wav
+bag_dir/
+  my_recording.bag
+```
+
+The final token in the wav stem is interpreted as ROS time in seconds by
+default auto-detection. Integer timestamps in nanoseconds are also supported.
+The script splits audio into `0.5 s` windows and writes the same
+`audio/image/depth/lidar/manifest.csv` pairs layout as the ROS 2 pipeline.
+By default, the hop equals the window length. Set `--hop-seconds` for
+overlapping windows, for example a `0.5 s` window every `0.1 s`.
+
+```bash
+$ source /opt/ros/noetic/setup.bash
+$ python3 data_processing/build_pairs_from_ros1_bags.py \
+    --wav-dir /path/to/wav_dir \
+    --bag-dir /path/to/ros1_bags \
+    --output-root data/pairs_ros1 \
+    --overwrite
+```
+
+The default ROS 1 topics match the existing extraction pipeline:
+
+```text
+/camera/color/image_raw/compressed
+/camera/depth/image_raw/compressedDepth
+/livox/lidar
+```
+
+Topics and synchronization behavior can be changed when needed:
+
+```bash
+$ python3 data_processing/build_pairs_from_ros1_bags.py \
+    --wav-dir /media/kemove/T9/bag/static/wav_exports \
+    --bag-dir /media/kemove/T9/bag/static/bag \
+    --output-root data/pairs_ros1 \
+    --timestamp-unit auto \
+    --header-stamp \
+    --segment-seconds 0.5 \
+    --hop-seconds 0.25 \
+    --max-sync-gap-seconds 0.25 \
+    --overwrite
+```
+
+LiDAR messages are decoded from either Livox `CustomMsg` (`points` containing
+`x/y/z/reflectivity`) or standard `sensor_msgs/PointCloud2`, and saved as
+float32 `x, y, z, intensity` `.bin` files.
+
 ### Generate pseudo 3D bbox labels
 
 Pseudo 3D bounding boxes are generated with a LiDAR-only detector trained from a small set of manually checked sequences.

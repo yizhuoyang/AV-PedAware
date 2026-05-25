@@ -17,12 +17,28 @@ import torchvision.transforms as Trans
 class AudioNavNeuralMusicLoader(Dataset):
     """NeuralMUSIC loader for synced_dataset from audio-nav.
 
-    Expected layout:
+    Supported layouts:
       synced_dataset/<sequence>/audio/<sample_id>.wav
       synced_dataset/<sequence>/doa_lio_odom.npz
 
-    The default target is `heading_target_yaw_signed_deg`, converted to [0, 360).
+      data/<split>/<sequence>/audio/<sample_id>.wav
+      data/<split>/<sequence>/doa/<sample_id>.npy
+
+    Per-sample DOA npy labels use:
+      [azimuth_rad, elevation_rad, unit_x, unit_y, unit_z, distance_m]
+
+    The auto target is `heading_target_yaw_signed_deg` for npz labels and
+    `azimuth_rad` for per-sample npy labels, both converted to [0, 360).
     """
+
+    ARRAY_DOA_FIELDS = [
+        "azimuth_rad",
+        "elevation_rad",
+        "unit_x",
+        "unit_y",
+        "unit_z",
+        "distance_m",
+    ]
 
     def __init__(
         self,
@@ -31,7 +47,7 @@ class AudioNavNeuralMusicLoader(Dataset):
         mic_offsets=None,
         audio_channels=(0, 1, 2, 3),
         feature_type="ipd",
-        doa_field="heading_target_yaw_signed_deg",
+        doa_field="auto",
         train_ratio=0.8,
         sequence_names=None,
         test_sequences=None,
@@ -135,17 +151,43 @@ class AudioNavNeuralMusicLoader(Dataset):
 
     def _load_doa_table(self, seq_dir):
         npz_path = seq_dir / "doa_lio_odom.npz"
-        if not npz_path.exists():
-            return {}
-        data = np.load(npz_path, allow_pickle=True)
-        fields = [str(field) for field in data["fields"]]
-        if self.doa_field not in fields:
-            raise KeyError(f"{self.doa_field} not found in {npz_path}; available fields: {fields}")
-        field_idx = fields.index(self.doa_field)
-        return {
-            str(sample_id): np.float32(row[field_idx] % 360.0)
-            for sample_id, row in zip(data["sample_ids"], data["data"])
-        }
+        if npz_path.exists():
+            data = np.load(npz_path, allow_pickle=True)
+            fields = [str(field) for field in data["fields"]]
+            doa_field = (
+                "heading_target_yaw_signed_deg"
+                if self.doa_field == "auto"
+                else self.doa_field
+            )
+            if doa_field not in fields:
+                raise KeyError(f"{doa_field} not found in {npz_path}; available fields: {fields}")
+            field_idx = fields.index(doa_field)
+            return {
+                str(sample_id): np.float32(row[field_idx] % 360.0)
+                for sample_id, row in zip(data["sample_ids"], data["data"])
+            }
+
+        doa_dir = seq_dir / "doa"
+        if doa_dir.exists():
+            doa_field = "azimuth_rad" if self.doa_field == "auto" else self.doa_field
+            if doa_field not in self.ARRAY_DOA_FIELDS:
+                raise KeyError(
+                    f"{doa_field} is not a supported per-sample DOA field; "
+                    f"available fields: {self.ARRAY_DOA_FIELDS}"
+                )
+            field_idx = self.ARRAY_DOA_FIELDS.index(doa_field)
+            doa_by_id = {}
+            for doa_path in sorted(doa_dir.glob("*.npy")):
+                values = np.load(doa_path).astype(np.float32).reshape(-1)
+                if values.shape[0] <= field_idx:
+                    continue
+                value = float(values[field_idx])
+                if doa_field.endswith("_rad"):
+                    value = np.degrees(value)
+                doa_by_id[doa_path.stem] = np.float32(value % 360.0)
+            return doa_by_id
+
+        return {}
 
     def _collect_samples(self):
         samples = []

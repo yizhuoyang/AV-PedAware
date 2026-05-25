@@ -32,7 +32,18 @@ def parse_csv_list(value):
 def main(args):
     device = torch.device(args.device if torch.cuda.is_available() else "cpu")
     mic_offsets = parse_mic_offsets(args.mic_offsets)
-    dataset_cls = AudioNavNeuralMusicLoader if args.dataset_type == "audio-nav" else AVPedNeuralMusicLoader
+    uses_audio_nav_layout = args.dataset_type in {"audio-nav", "respeaker"}
+    dataset_cls = AudioNavNeuralMusicLoader if uses_audio_nav_layout else AVPedNeuralMusicLoader
+    audio_nav_kwargs = (
+        {
+            "doa_field": args.doa_field,
+            "train_ratio": args.train_ratio,
+            "object_filter": args.object_filter,
+            "test_sequences": parse_csv_list(args.test_sequences),
+        }
+        if uses_audio_nav_layout
+        else {}
+    )
 
     train_dataset = dataset_cls(
         root_path=args.data_root,
@@ -42,16 +53,7 @@ def main(args):
         feature_type=args.feature_type,
         geometry_aug=args.geometry_aug,
         rotation_interval=args.rotation_interval,
-        **(
-            {
-                "doa_field": args.doa_field,
-                "train_ratio": args.train_ratio,
-                "object_filter": args.object_filter,
-                "test_sequences": parse_csv_list(args.test_sequences),
-            }
-            if args.dataset_type == "audio-nav"
-            else {}
-        ),
+        **audio_nav_kwargs,
     )
     val_dataset = dataset_cls(
         root_path=args.data_root,
@@ -60,16 +62,7 @@ def main(args):
         audio_channels=tuple(args.audio_channels),
         feature_type=args.feature_type,
         geometry_aug=False,
-        **(
-            {
-                "doa_field": args.doa_field,
-                "train_ratio": args.train_ratio,
-                "object_filter": args.object_filter,
-                "test_sequences": parse_csv_list(args.test_sequences),
-            }
-            if args.dataset_type == "audio-nav"
-            else {}
-        ),
+        **audio_nav_kwargs,
     )
     if len(train_dataset) == 0 or len(val_dataset) == 0:
         raise ValueError("Train and validation splits must both contain samples")
@@ -108,8 +101,9 @@ def main(args):
     print(f"train samples: {len(train_dataset)}")
     print(f"val samples: {len(val_dataset)}")
     print(f"dataset type: {args.dataset_type}")
-    if args.dataset_type == "audio-nav":
+    if uses_audio_nav_layout:
         print(f"object filter: {args.object_filter or 'all'}")
+        print(f"doa field: {args.doa_field}")
         print(f"test sequences override: {args.test_sequences or 'none'}")
         print(f"train sequences: {train_dataset.selected_sequences}")
         print(f"val sequences: {val_dataset.selected_sequences}")
@@ -135,12 +129,19 @@ def main(args):
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train NeuralMUSIC on AV-PedAware pairs data")
-    parser.add_argument("--dataset-type", choices=["avped", "audio-nav"], default="avped")
+    parser.add_argument("--dataset-type", choices=["avped", "audio-nav", "respeaker"], default="avped")
     parser.add_argument("--data-root", default="data/pairs")
     parser.add_argument("--train-split", default="train")
     parser.add_argument("--val-split", default="test")
     parser.add_argument("--train-ratio", type=float, default=0.8)
-    parser.add_argument("--doa-field", default="heading_target_yaw_signed_deg")
+    parser.add_argument(
+        "--doa-field",
+        default="auto",
+        help=(
+            "DOA target field. auto uses heading_target_yaw_signed_deg for doa_lio_odom.npz "
+            "and azimuth_rad for per-sample doa/*.npy."
+        ),
+    )
     parser.add_argument("--object-filter", default="", help="Comma-separated sequence prefixes, e.g. clock or clock,dryer")
     parser.add_argument("--test-sequences", default="", help="Comma-separated sequence names reserved for val/test, e.g. clock2")
     parser.add_argument("--audio-channels", type=int, nargs="+", default=[0, 1, 2, 3])
@@ -159,5 +160,4 @@ if __name__ == "__main__":
     parser.add_argument("--save-dir", default="output_neuralmusic")
     parser.add_argument("--device", default="cuda:0")
     main(parser.parse_args())
-
 
