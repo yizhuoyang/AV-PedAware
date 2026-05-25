@@ -26,6 +26,8 @@ class AudioNavAudioAngleLoader(Dataset):
         return_angle=False,
         return_metadata=False,
         sample_rate=16000,
+        num_angle_bins=360,
+        target_sigma_deg=5.0,
     ):
         super().__init__()
         self.root_path = Path(root_path)
@@ -38,6 +40,12 @@ class AudioNavAudioAngleLoader(Dataset):
         self.return_angle = return_angle
         self.return_metadata = return_metadata
         self.sample_rate = sample_rate
+        self.num_angle_bins = int(num_angle_bins)
+        self.target_sigma_deg = float(target_sigma_deg)
+        if self.num_angle_bins <= 1:
+            raise ValueError("num_angle_bins must be greater than one")
+        if self.target_sigma_deg <= 0.0:
+            raise ValueError("target_sigma_deg must be greater than zero")
         self.freq_mask = T.FrequencyMasking(freq_mask_param=freq_mask_param)
         self.time_mask = T.TimeMasking(time_mask_param=time_mask_param)
         self.selected_sequences = []
@@ -123,12 +131,21 @@ class AudioNavAudioAngleLoader(Dataset):
             spec = self.time_mask(spec)
         return spec
 
+    def _angle_distribution(self, angle):
+        bin_angles = np.arange(self.num_angle_bins, dtype=np.float32) * (
+            2.0 * np.pi / self.num_angle_bins
+        )
+        difference = np.arctan2(np.sin(bin_angles - angle), np.cos(bin_angles - angle))
+        sigma = np.deg2rad(self.target_sigma_deg)
+        distribution = np.exp(-0.5 * (difference / sigma) ** 2)
+        return (distribution / distribution.sum()).astype(np.float32)
+
     def __getitem__(self, index):
         sample = self.samples[index]
         spec = self._load_audio_spec(sample["audio"])
         angle = np.deg2rad(sample["doa"]).astype(np.float32)
-        vector = np.asarray([np.sin(angle), np.cos(angle)], dtype=np.float32)
-        output = [spec, torch.from_numpy(vector).float()]
+        distribution = self._angle_distribution(angle)
+        output = [spec, torch.from_numpy(distribution).float()]
         if self.return_angle:
             output.append(torch.tensor(angle).float())
         if self.return_metadata:

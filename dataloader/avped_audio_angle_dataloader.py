@@ -34,6 +34,8 @@ class AVpedAudioAngleLoader(Dataset):
         low_cut_hz=None,
         high_cut_hz=None,
         filter_order=4,
+        num_angle_bins=360,
+        target_sigma_deg=5.0,
         return_angle=False,
         return_metadata=False,
         skip_empty_labels=True,
@@ -59,6 +61,12 @@ class AVpedAudioAngleLoader(Dataset):
         self.filter_order = int(filter_order)
         if self.filter_order <= 0:
             raise ValueError("filter_order must be greater than zero")
+        self.num_angle_bins = int(num_angle_bins)
+        self.target_sigma_deg = float(target_sigma_deg)
+        if self.num_angle_bins <= 1:
+            raise ValueError("num_angle_bins must be greater than one")
+        if self.target_sigma_deg <= 0.0:
+            raise ValueError("target_sigma_deg must be greater than zero")
         self.noise_sample_rate = None
         self.noise_audio = None
         if self.noise_wav is not None:
@@ -130,7 +138,7 @@ class AVpedAudioAngleLoader(Dataset):
 
     def get_angle_rad(self, index):
         """Return the bbox-derived azimuth without loading audio features."""
-        angle, _ = self._load_azimuth(self.samples[index]["label"])
+        angle = self._load_azimuth(self.samples[index]["label"])
         return float(angle)
 
     def _select_audio_channels(self, audio, path):
@@ -223,15 +231,23 @@ class AVpedAudioAngleLoader(Dataset):
         if len(parts) != 15:
             raise ValueError(f"Expected 15 label fields in {path}, got {len(parts)}")
         x, y = map(float, parts[11:13])
-        angle = np.arctan2(y, x).astype(np.float32)
-        vector = np.asarray([np.sin(angle), np.cos(angle)], dtype=np.float32)
-        return angle, vector
+        return np.arctan2(y, x).astype(np.float32)
+
+    def _angle_distribution(self, angle):
+        bin_angles = np.arange(self.num_angle_bins, dtype=np.float32) * (
+            2.0 * np.pi / self.num_angle_bins
+        )
+        difference = np.arctan2(np.sin(bin_angles - angle), np.cos(bin_angles - angle))
+        sigma = np.deg2rad(self.target_sigma_deg)
+        distribution = np.exp(-0.5 * (difference / sigma) ** 2)
+        return (distribution / distribution.sum()).astype(np.float32)
 
     def __getitem__(self, index):
         sample = self.samples[index]
         spec = self._load_audio_spec(sample["audio"])
-        angle, vector = self._load_azimuth(sample["label"])
-        output = [spec, torch.from_numpy(vector).float()]
+        angle = self._load_azimuth(sample["label"])
+        distribution = self._angle_distribution(angle)
+        output = [spec, torch.from_numpy(distribution).float()]
         if self.return_angle:
             output.append(torch.tensor(angle).float())
         if self.return_metadata:

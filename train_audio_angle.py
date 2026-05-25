@@ -10,14 +10,7 @@ from tqdm import tqdm
 from dataloader.avped_audio_angle_dataloader import AVpedAudioAngleLoader
 from dataloader.audionav_audio_angle_dataloader import AudioNavAudioAngleLoader
 from network.audio_angle_net import AudioAngleNet
-from utils.loss import angle_vector_loss
-
-
-def angular_error_deg(pred_vector, target_vector):
-    pred_angle = torch.atan2(pred_vector[:, 0], pred_vector[:, 1])
-    target_angle = torch.atan2(target_vector[:, 0], target_vector[:, 1])
-    diff = torch.atan2(torch.sin(pred_angle - target_angle), torch.cos(pred_angle - target_angle))
-    return torch.rad2deg(torch.abs(diff))
+from utils.loss import angle_distribution_loss, angular_error_from_distribution_deg
 
 
 def run_epoch(model, dataloader, optimizer, device, training):
@@ -32,12 +25,12 @@ def run_epoch(model, dataloader, optimizer, device, training):
             if training:
                 optimizer.zero_grad()
             pred = model(spec)
-            loss = angle_vector_loss(pred, target)
+            loss = angle_distribution_loss(pred, target)
             if training:
                 loss.backward()
                 optimizer.step()
             total_loss += loss.item()
-            errors.append(angular_error_deg(pred, target).detach().cpu().numpy())
+            errors.append(angular_error_from_distribution_deg(pred, target).detach().cpu().numpy())
     return total_loss / max(len(dataloader), 1), float(np.concatenate(errors).mean())
 
 
@@ -53,6 +46,8 @@ def build_loader(args, split, shuffle):
             augment=shuffle,
             freq_mask_param=args.freq_mask_param,
             time_mask_param=args.time_mask_param,
+            num_angle_bins=args.num_angle_bins,
+            target_sigma_deg=args.target_sigma_deg,
         )
     else:
         dataset = AVpedAudioAngleLoader(
@@ -70,6 +65,8 @@ def build_loader(args, split, shuffle):
             low_cut_hz=args.low_cut_hz,
             high_cut_hz=args.high_cut_hz,
             filter_order=args.filter_order,
+            num_angle_bins=args.num_angle_bins,
+            target_sigma_deg=args.target_sigma_deg,
         )
     return dataset, DataLoader(
         dataset,
@@ -96,6 +93,7 @@ def main(args):
         hidden_dim=args.hidden_dim,
         kernel_num=args.kernel_num,
         audio_channels=1 + 2 * (len(args.audio_channels) - 1) if args.feature_type == "ipd" else len(args.audio_channels),
+        num_angle_bins=args.num_angle_bins,
     ).to(device)
     if args.checkpoint:
         model.load_state_dict(torch.load(args.checkpoint, map_location=device))
@@ -123,6 +121,7 @@ def main(args):
         print(f"val sequences: {val_dataset.selected_sequences}")
     print(f"audio channels: {args.audio_channels}")
     print(f"feature type: {args.feature_type}")
+    print(f"DOA probability bins: {args.num_angle_bins} target sigma: {args.target_sigma_deg} deg")
     if args.dataset_type == "avped":
         print(f"noise wav: {args.noise_wav or 'disabled'}")
         print(
@@ -161,7 +160,7 @@ def main(args):
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Train audio-only azimuth estimator")
+    parser = argparse.ArgumentParser(description="Train audio-only azimuth probability estimator")
     parser.add_argument("--dataset-type", choices=["avped", "audio-nav"], default="avped")
     parser.add_argument("--data-root", default="data/pairs")
     parser.add_argument("--train-split", default="train")
@@ -188,6 +187,8 @@ if __name__ == "__main__":
     parser.add_argument("--low-cut-hz", type=float, default=None)
     parser.add_argument("--high-cut-hz", type=float, default=None)
     parser.add_argument("--filter-order", type=int, default=4)
+    parser.add_argument("--num-angle-bins", type=int, default=360)
+    parser.add_argument("--target-sigma-deg", type=float, default=5.0)
     parser.add_argument("--lr-factor", type=float, default=0.5)
     parser.add_argument("--lr-patience", type=int, default=5)
     parser.add_argument("--early-stop-patience", type=int, default=12)
