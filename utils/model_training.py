@@ -70,7 +70,7 @@ def save_grad(name):
     return hook
 
 class ModelTrainer:
-    def __init__(self, model, train_loader, val_loader, criterion, optimizer, epoch, model_path, device="cuda", lr_scheduler=None, save_best=True,multi_task=False):
+    def __init__(self, model, train_loader, val_loader, criterion, optimizer, epoch, model_path, device="cuda", lr_scheduler=None, save_best=True,multi_task=False, spectrum_sigma=10.0):
         self.model = model.to(device)
         self.train_loader = train_loader
         self.val_loader = val_loader
@@ -82,6 +82,7 @@ class ModelTrainer:
         self.model_path = model_path
         self.save_best = save_best
         self.multi_task = multi_task
+        self.spectrum_sigma = spectrum_sigma
         self.mse_loss = nn.MSELoss()
         # self.mse_loss = _neg_loss
         self.writer = SummaryWriter(log_dir=os.path.join(model_path, "logs"))
@@ -121,11 +122,7 @@ class ModelTrainer:
             self.optimizer.zero_grad()
             outputs = self.model(inputs,sv,correlation)
             if len(outputs)==2:
-                if targets.shape[1]==1:
-                    sigma = 10
-                else:
-                    sigma = 5
-                spectrum_gt = generate_music_gt(targets,sigma=sigma)
+                spectrum_gt = generate_music_gt(targets,sigma=self.spectrum_sigma)
                 loss = self.mse_loss(outputs[1],spectrum_gt)
                 total_mae += circular_mae_from_spectrum(outputs[1], targets).item()
             else:
@@ -158,11 +155,7 @@ class ModelTrainer:
                 inputs, targets,sv,correlation = inputs.to(self.device), targets.to(self.device),sv.to(self.device),correlation.to(self.device)
                 outputs = self.model(inputs,sv,correlation)
                 if len(outputs)==2:
-                    if targets.shape[1]==1:
-                        sigma = 10
-                    else:
-                        sigma = 5
-                    spectrum_gt = generate_music_gt(targets,sigma=sigma)
+                    spectrum_gt = generate_music_gt(targets,sigma=self.spectrum_sigma)
                     loss = self.mse_loss(outputs[1],spectrum_gt)
                     total_mae += circular_mae_from_spectrum(outputs[1], targets).item()
                 else:

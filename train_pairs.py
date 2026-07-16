@@ -120,3 +120,4 @@ if __name__ == "__main__":
     parser.add_argument("--save-dir", default="output_pairs")
     parser.add_argument("--device", default="cuda:0")
     main(parser.parse_args())
+

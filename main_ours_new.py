@@ -34,7 +34,7 @@ def main(args):
     mic_offsets = parse_mic_offsets(args.mic_offsets)
     uses_audio_nav_layout = args.dataset_type in {"audio-nav", "respeaker"}
     dataset_cls = AudioNavNeuralMusicLoader if uses_audio_nav_layout else AVPedNeuralMusicLoader
-    audio_nav_kwargs = (
+    dataset_kwargs = (
         {
             "doa_field": args.doa_field,
             "train_ratio": args.train_ratio,
@@ -42,7 +42,7 @@ def main(args):
             "test_sequences": parse_csv_list(args.test_sequences),
         }
         if uses_audio_nav_layout
-        else {}
+        else {"object_filter": args.object_filter}
     )
 
     train_dataset = dataset_cls(
@@ -53,7 +53,7 @@ def main(args):
         feature_type=args.feature_type,
         geometry_aug=args.geometry_aug,
         rotation_interval=args.rotation_interval,
-        **audio_nav_kwargs,
+        **dataset_kwargs,
     )
     val_dataset = dataset_cls(
         root_path=args.data_root,
@@ -62,7 +62,7 @@ def main(args):
         audio_channels=tuple(args.audio_channels),
         feature_type=args.feature_type,
         geometry_aug=False,
-        **audio_nav_kwargs,
+        **dataset_kwargs,
     )
     if len(train_dataset) == 0 or len(val_dataset) == 0:
         raise ValueError("Train and validation splits must both contain samples")
@@ -101,12 +101,12 @@ def main(args):
     print(f"train samples: {len(train_dataset)}")
     print(f"val samples: {len(val_dataset)}")
     print(f"dataset type: {args.dataset_type}")
+    print(f"object filter: {args.object_filter or 'all'}")
     if uses_audio_nav_layout:
-        print(f"object filter: {args.object_filter or 'all'}")
         print(f"doa field: {args.doa_field}")
         print(f"test sequences override: {args.test_sequences or 'none'}")
-        print(f"train sequences: {train_dataset.selected_sequences}")
-        print(f"val sequences: {val_dataset.selected_sequences}")
+    print(f"train sequences: {train_dataset.selected_sequences}")
+    print(f"val sequences: {val_dataset.selected_sequences}")
     print(f"audio channels: {args.audio_channels}")
     print(f"feature type: {args.feature_type}")
     print(f"geometry augmentation: {args.geometry_aug}")
@@ -123,6 +123,7 @@ def main(args):
         model_path=str(save_dir),
         device=device,
         lr_scheduler=scheduler,
+        spectrum_sigma=args.target_sigma_deg,
     )
     trainer.train()
 
@@ -157,7 +158,7 @@ if __name__ == "__main__":
     parser.add_argument("--lr-step-size", type=int, default=30)
     parser.add_argument("--lr-gamma", type=float, default=0.5)
     parser.add_argument("--no-attention", action="store_true")
+    parser.add_argument("--target-sigma-deg", type=float, default=10.0)
     parser.add_argument("--save-dir", default="output_neuralmusic")
     parser.add_argument("--device", default="cuda:0")
     main(parser.parse_args())
-

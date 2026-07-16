@@ -279,7 +279,6 @@ def write_sample(output_dir, index, sample_rate, audio, color_msg, depth_msg, li
 def process_job(job, args):
     bag_path, wav_path, first_stamp_ns = job
     output_dir = args.output_root / bag_path.stem
-    prepare_output_dirs(output_dir, args.overwrite)
 
     sample_rate, audio = wavfile.read(str(wav_path))
     if audio.ndim == 1:
@@ -297,6 +296,7 @@ def process_job(job, args):
 
     topics = (args.color_topic, args.depth_topic, args.lidar_topic)
     messages = load_sensor_messages(bag_path, topics, args.header_stamp)
+    prepare_output_dirs(output_dir, args.overwrite)
     max_gap_ns = int(round(args.max_sync_gap_seconds * 1e9))
     saved = 0
     with (output_dir / "manifest.csv").open("w", newline="") as handle:

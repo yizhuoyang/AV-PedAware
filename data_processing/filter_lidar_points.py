@@ -18,7 +18,7 @@ def parse_args():
     parser.add_argument(
         "--xy-radius",
         type=float,
-        default=5.0,
+        default=10.0,
         help="Keep points within this XY radius from the origin.",
     )
     parser.add_argument(
@@ -93,3 +93,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+

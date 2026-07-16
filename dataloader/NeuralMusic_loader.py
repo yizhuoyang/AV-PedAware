@@ -51,9 +51,10 @@ def compute_correlation_matrices_torch(stft: torch.Tensor) -> torch.Tensor:
 class DirectionGrid:
     """Far-field 360-degree XY grid used by MUSIC steering vectors."""
     def __init__(self):
-        self.x = np.load('/home/kemove/yyz/SubspaceNet/DeepMucis_plus/grid_x.npy')
-        self.y = np.load('/home/kemove/yyz/SubspaceNet/DeepMucis_plus/grid_y.npy')
-        self.z = np.load('/home/kemove/yyz/SubspaceNet/DeepMucis_plus/grid_z.npy')
+        angles = np.deg2rad(np.arange(360, dtype=np.float32))
+        self.x = np.cos(angles).astype(np.float32)
+        self.y = np.sin(angles).astype(np.float32)
+        self.z = np.zeros(360, dtype=np.float32)
 
 
 class AVPedNeuralMusicLoader(Dataset):
@@ -66,25 +67,32 @@ class AVPedNeuralMusicLoader(Dataset):
         mic_offsets=None,
         audio_channels=(0, 1, 2, 3),
         feature_type="magphase",
+        object_filter=None,
+        sequence_names=None,
         geometry_aug=False,
         rotation_interval=None,
         sample_rate=16000,
         n_fft=512,
         hop_length=256,
         skip_empty_labels=True,
+        return_metadata=False,
     ):
         super().__init__()
         self.root_path = Path(root_path)
         self.split = split
-        self.split_root = self.root_path / split
+        self.split_root = self._split_root()
         self.audio_channels = tuple(audio_channels)
         self.feature_type = feature_type
+        self.object_filter = object_filter
+        self.sequence_names = set(sequence_names or [])
         self.geometry_aug = geometry_aug
         self.rotation_interval = rotation_interval
         self.sample_rate = sample_rate
         self.n_fft = n_fft
         self.hop_length = hop_length
         self.skip_empty_labels = skip_empty_labels
+        self.return_metadata = return_metadata
+        self.selected_sequences = []
         self.samples = self._collect_samples()
 
         if mic_offsets is None:
@@ -118,9 +126,38 @@ class AVPedNeuralMusicLoader(Dataset):
         self.window = torch.hann_window(self.n_fft)
         self.resize = Trans.Resize((self.n_fft // 2 + 1, 64), antialias=True)
 
+    def _split_root(self):
+        split_root = self.root_path / self.split
+        if split_root.is_dir():
+            return split_root
+        if self.split == "val" and (self.root_path / "test").is_dir():
+            return self.root_path / "test"
+        return self.root_path
+
+    def _sequence_dirs(self):
+        if not self.split_root.is_dir():
+            raise FileNotFoundError(f"Dataset split directory does not exist: {self.split_root}")
+        sequence_dirs = [
+            path for path in sorted(self.split_root.iterdir()) if (path / "audio").is_dir()
+        ]
+        if self.sequence_names:
+            sequence_dirs = [path for path in sequence_dirs if path.name in self.sequence_names]
+        if self.object_filter:
+            prefixes = tuple(
+                name.strip() for name in self.object_filter.split(",") if name.strip()
+            )
+            sequence_dirs = [path for path in sequence_dirs if path.name.startswith(prefixes)]
+        if not sequence_dirs:
+            raise ValueError(
+                f"No sequences found in {self.split_root} for "
+                f"object_filter={self.object_filter or 'all'}"
+            )
+        self.selected_sequences = [path.name for path in sequence_dirs]
+        return sequence_dirs
+
     def _collect_samples(self):
         samples = []
-        for bag_dir in sorted(path for path in self.split_root.iterdir() if path.is_dir()):
+        for bag_dir in self._sequence_dirs():
             for audio_path in sorted((bag_dir / "audio").glob("*.wav")):
                 stem = audio_path.stem
                 label_path = bag_dir / "labels" / f"{stem}.txt"
@@ -134,6 +171,7 @@ class AVPedNeuralMusicLoader(Dataset):
                         "stem": stem,
                         "audio": audio_path,
                         "label": label_path,
+                        "lidar": bag_dir / "lidar" / f"{stem}.bin",
                     }
                 )
         return samples
@@ -211,7 +249,24 @@ class AVPedNeuralMusicLoader(Dataset):
             n_fft=self.n_fft,
             interval=self.rotation_interval,
         )
-        return spectrogram, torch.from_numpy(doa).float(), steering_vector.to(torch.complex64), correlation
+        output = [
+            spectrogram,
+            torch.from_numpy(doa).float(),
+            steering_vector.to(torch.complex64),
+            correlation,
+        ]
+        if self.return_metadata:
+            output.append(
+                {
+                    "sequence": sample["bag"],
+                    "bag": sample["bag"],
+                    "stem": sample["stem"],
+                    "audio": str(sample["audio"]),
+                    "label": str(sample["label"]),
+                    "lidar": str(sample["lidar"]),
+                }
+            )
+        return tuple(output)
 
 
 # Backward-compatible name used by older scripts.
